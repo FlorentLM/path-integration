@@ -113,6 +113,24 @@ class CXRate(CX):
                 [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1]])
         self.W_CPU1b_motor = np.array([[0, 1],
                                        [1, 0]])
+        self.W_LTM_CPU4 = np.array([
+                [-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1]])
+
 
         if weight_noise > 0.0:
             self.W_CL1_TB1 = noisify_weights(self.W_CL1_TB1, weight_noise)
@@ -128,6 +146,9 @@ class CXRate(CX):
                                                  weight_noise)
             self.W_CPU1b_motor = noisify_weights(self.W_CPU1b_motor,
                                                  weight_noise)
+            #self.W_LTM_CPU4 = noisify_weights(self.W_LTM_CPU4,
+            #                                     weight_noise)
+
         # The cell properties (for sigmoid function)
         self.tl2_slope = tl2_slope
         self.tl2_bias = tl2_bias
@@ -371,7 +392,6 @@ class CXRatePontinHolonomic(CXRatePontin):
         cpu4_mem_reshaped += self.cpu4_mem_gain * mem_update
         return np.clip(cpu4_mem_reshaped.reshape(-1), 0.0, 1.0)
 
-        return cpu4_mem
 
     def decode_cpu4(self, cpu4):
         """Shifts both CPU4 by +1 and -1 column to cancel 45 degree flow
@@ -380,6 +400,16 @@ class CXRatePontinHolonomic(CXRatePontin):
         cpu4_shifted = np.vstack([np.roll(cpu4_reshaped[0], 1),
                                   np.roll(cpu4_reshaped[1], -1)])
         return decode_position(cpu4_shifted, self.cpu4_mem_gain)
+
+    def cpu4_inhibition(self, cpu4, ltm, gain=1.0):
+        """ Applies a stored memory onto CPU4, inhibiting it before CPU1 """
+
+        if ltm is None:
+            ltm = np.ones(N_CPU4) * 0.5
+
+        cpu4_inh = cpu4 + (np.dot(self.W_LTM_CPU4, ltm) + 0.5) * gain
+
+        return np.clip(cpu4_inh, 0.0, 1.0)
 
     def __str__(self):
         return "rate_pontin_holo"
